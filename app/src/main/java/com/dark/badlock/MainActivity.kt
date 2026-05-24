@@ -26,7 +26,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -161,42 +167,28 @@ fun LiquidGlassSurface(
     content: @Composable BoxScope.() -> Unit = {}
 ) {
     val isDark = isSystemInDarkTheme()
+    val glassEnabled = LocalLiquidGlassEnabled.current
     val bloomColor = if (isDark) Color.White.copy(alpha = bloomAlpha) else Color.Black.copy(alpha = bloomAlpha * 0.4f)
-    val rimColor   = if (isDark) Color.White.copy(alpha = rimAlpha)   else Color.White.copy(alpha = rimAlpha * 1.2f)
 
     Box(modifier = modifier) {
-        // Layer 1 — blur bloom (gives the frosted depth)
+        if (glassEnabled) {
+            // Layer 1 — heavy blur bloom for deep frosted look
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .blur(56.dp)
+                    .background(bloomColor)
+            )
+        }
+        // Layer 2 — semi-transparent tinted fill (no rim line)
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
-                .blur(32.dp)
-                .background(bloomColor)
+                .background(if (glassEnabled) tint else appColors.cardBackground)
         )
-        // Layer 2 — semi-transparent tinted glass fill
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(tint)
-                .drawBehind {
-                    // specular rim — thin bright line across the top
-                    val rimH = 1.5.dp.toPx()
-                    drawRoundRect(
-                        color = rimColor,
-                        topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
-                        size = androidx.compose.ui.geometry.Size(size.width, rimH),
-                        cornerRadius = when (shape) {
-                            is RoundedCornerShape -> {
-                                val r = (size.height / 2f).coerceAtMost(size.width / 2f)
-                                androidx.compose.ui.geometry.CornerRadius(r, r)
-                            }
-                            else -> androidx.compose.ui.geometry.CornerRadius(0f)
-                        }
-                    )
-                }
-        )
-        // Layer 3 — content on top
+        // Layer 3 — content
         content()
     }
 }
@@ -206,6 +198,7 @@ val LocalMaterialYou = staticCompositionLocalOf { false }
 
 private const val PREFS_NAME = "cool_lock_prefs"
 private const val KEY_MATERIAL_YOU = "material_you_enabled"
+private const val KEY_LIQUID_GLASS = "liquid_glass_enabled"
 
 fun getMaterialYouEnabled(context: Context): Boolean =
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -215,18 +208,28 @@ fun setMaterialYouEnabled(context: Context, enabled: Boolean) =
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         .edit().putBoolean(KEY_MATERIAL_YOU, enabled).apply()
 
+fun getLiquidGlassEnabled(context: Context): Boolean =
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .getBoolean(KEY_LIQUID_GLASS, true)
+
+fun setLiquidGlassEnabled(context: Context, enabled: Boolean) =
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit().putBoolean(KEY_LIQUID_GLASS, enabled).apply()
+
 @Composable
 fun AppTheme(content: @Composable () -> Unit) {
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
-    var materialYouEnabled by remember {
-        mutableStateOf(getMaterialYouEnabled(context))
-    }
+    var materialYouEnabled by remember { mutableStateOf(getMaterialYouEnabled(context)) }
+    var liquidGlassEnabled by remember { mutableStateOf(getLiquidGlassEnabled(context)) }
 
-    // Expose setter so child composables can toggle it
     val setMY: (Boolean) -> Unit = { enabled ->
         materialYouEnabled = enabled
         setMaterialYouEnabled(context, enabled)
+    }
+    val setLG: (Boolean) -> Unit = { enabled ->
+        liquidGlassEnabled = enabled
+        setLiquidGlassEnabled(context, enabled)
     }
 
     val supportsMyou = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -272,7 +275,9 @@ fun AppTheme(content: @Composable () -> Unit) {
         LocalMaterialYou provides (dynamicScheme != null),
         LocalMaterialYouSetter provides setMY,
         LocalMaterialYouEnabled provides materialYouEnabled,
-        LocalSupportsMyou provides supportsMyou
+        LocalSupportsMyou provides supportsMyou,
+        LocalLiquidGlassEnabled provides liquidGlassEnabled,
+        LocalLiquidGlassSetter provides setLG
     ) {
         MaterialTheme(colorScheme = materialScheme, typography = Typography(), content = content)
     }
@@ -281,6 +286,8 @@ fun AppTheme(content: @Composable () -> Unit) {
 val LocalMaterialYouSetter = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 val LocalMaterialYouEnabled = staticCompositionLocalOf { false }
 val LocalSupportsMyou = staticCompositionLocalOf { false }
+val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
+val LocalLiquidGlassSetter = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 
 // Convenience accessor
 val appColors: AppColors
@@ -1002,6 +1009,11 @@ fun MainScreen(cacheManager: CacheManager) {
                     val setMaterialYou = LocalMaterialYouSetter.current
                     val supportsMyou = LocalSupportsMyou.current
 
+                    var showSettings by remember { mutableStateOf(false) }
+                    val liquidGlassEnabled = LocalLiquidGlassEnabled.current
+                    val setLiquidGlass = LocalLiquidGlassSetter.current
+                    val listStates = remember(tabs) { tabs.map { LazyListState() } }
+
                     Box(modifier = Modifier.fillMaxSize()) {
                         HorizontalPager(
                             state = pagerState,
@@ -1016,6 +1028,7 @@ fun MainScreen(cacheManager: CacheManager) {
                             ModuleList(
                                 modules = modulesToShow,
                                 showEmptyMessage = (pageTitle == "Updates"),
+                                listState = listStates[page],
                                 onModuleClick = onModuleClick,
                                 onWebsiteClick = onWebsiteClick,
                                 onUpdateClick = onUpdateClick,
@@ -1024,24 +1037,62 @@ fun MainScreen(cacheManager: CacheManager) {
                             )
                         }
 
-                        // Bottom overlay: gradient scrim + glass pill tab bar + title row
+                        // Sticky card that rises above the tab bar when scrolling near bottom
+                        val currentListState = listStates[pagerState.currentPage]
+                        val currentPageModules = when (tabs[pagerState.currentPage]) {
+                            "Updates" -> updatableModules
+                            else -> state.modules[tabs[pagerState.currentPage]] ?: emptyList()
+                        }
+                        val layoutInfo = currentListState.layoutInfo
+                        val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                        val totalItems = currentPageModules.size
+                        // Show sticky bar when last item is partially scrolled out of view
+                        val showStickyBar = lastVisibleItem != null &&
+                            lastVisibleItem.index == totalItems - 1 &&
+                            lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset - 160
+                        val stickyModule = if (showStickyBar && totalItems > 0) currentPageModules[totalItems - 1] else null
+
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = stickyModule != null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 152.dp, start = 16.dp, end = 16.dp),
+                            enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
+                            exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()
+                        ) {
+                            stickyModule?.let { module ->
+                                ModuleCard(
+                                    module = module,
+                                    onModuleClick = { onModuleClick(module) },
+                                    onWebsiteClick = { onWebsiteClick(module.apkMirrorMainPage) },
+                                    onUpdateClick = { onUpdateClick(module) },
+                                    onAppInfoClick = { onAppInfoClick(module.packageName) },
+                                    onOpenClick = { onOpenClick(module) }
+                                )
+                            }
+                        }
+
+                        // Bottom overlay
+                        val isDark = isSystemInDarkTheme()
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.BottomCenter)
                         ) {
-                            // Gradient scrim fading upward
+                            // Taller, stronger gradient scrim
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(160.dp)
+                                    .height(220.dp)
                                     .align(Alignment.BottomCenter)
                                     .background(
                                         brush = androidx.compose.ui.graphics.Brush.verticalGradient(
                                             colors = listOf(
                                                 Color.Transparent,
-                                                appColors.background.copy(alpha = 0.6f),
-                                                appColors.background.copy(alpha = 0.92f),
+                                                appColors.background.copy(alpha = 0.45f),
+                                                appColors.background.copy(alpha = 0.80f),
+                                                appColors.background.copy(alpha = 0.96f),
                                                 appColors.background
                                             )
                                         )
@@ -1055,8 +1106,7 @@ fun MainScreen(cacheManager: CacheManager) {
                                     .navigationBarsPadding(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // Glass pill tab bar
-                                val isDark = isSystemInDarkTheme()
+                                // Glass pill tab bar — selector uses animated tint (no pop-in box)
                                 LiquidGlassSurface(
                                     modifier = Modifier
                                         .padding(horizontal = 6.dp)
@@ -1064,8 +1114,7 @@ fun MainScreen(cacheManager: CacheManager) {
                                         .height(56.dp),
                                     shape = RoundedCornerShape(50.dp),
                                     tint = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f),
-                                    bloomAlpha = if (isDark) 0.14f else 0.20f,
-                                    rimAlpha = if (isDark) 0.30f else 0.55f
+                                    bloomAlpha = if (isDark) 0.18f else 0.24f
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -1078,30 +1127,32 @@ fun MainScreen(cacheManager: CacheManager) {
                                             val isSelected = pagerState.currentPage == index
                                             val iconTint by animateColorAsState(
                                                 targetValue = if (isSelected) appColors.textPrimary else appColors.textSecondary,
-                                                animationSpec = tween(200)
+                                                animationSpec = tween(200), label = "iconTint"
+                                            )
+                                            val selectorTint by animateColorAsState(
+                                                targetValue = if (isSelected)
+                                                    if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.65f)
+                                                else Color.Transparent,
+                                                animationSpec = tween(200), label = "selectorTint"
                                             )
                                             val icon = when (title) {
                                                 "Updates"  -> Icons.Default.SystemUpdate
                                                 "Make up"  -> Icons.Default.Palette
                                                 else       -> Icons.Default.Style
                                             }
-                                            // Per-tab: glass selector when active
                                             Box(
                                                 modifier = Modifier.weight(1f),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                if (isSelected) {
-                                                    LiquidGlassSurface(
-                                                        modifier = Modifier
-                                                            .fillMaxHeight()
-                                                            .fillMaxWidth(0.92f)
-                                                            .clip(RoundedCornerShape(50.dp)),
-                                                        shape = RoundedCornerShape(50.dp),
-                                                        tint = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.65f),
-                                                        bloomAlpha = if (isDark) 0.20f else 0.25f,
-                                                        rimAlpha = if (isDark) 0.45f else 0.70f
-                                                    )
-                                                }
+                                                LiquidGlassSurface(
+                                                    modifier = Modifier
+                                                        .fillMaxHeight()
+                                                        .fillMaxWidth(0.92f)
+                                                        .clip(RoundedCornerShape(50.dp)),
+                                                    shape = RoundedCornerShape(50.dp),
+                                                    tint = selectorTint,
+                                                    bloomAlpha = if (isSelected) (if (isDark) 0.22f else 0.28f) else 0f
+                                                )
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
@@ -1131,38 +1182,26 @@ fun MainScreen(cacheManager: CacheManager) {
                                     }
                                 }
 
-                                // Title + Material You + Refresh — glass row
+                                // Title + Settings + Refresh glass row
                                 LiquidGlassSurface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 6.dp, vertical = 6.dp),
                                     shape = RoundedCornerShape(28.dp),
                                     tint = if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f),
-                                    bloomAlpha = if (isDark) 0.10f else 0.16f,
-                                    rimAlpha = if (isDark) 0.22f else 0.45f
+                                    bloomAlpha = if (isDark) 0.12f else 0.18f
                                 ) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                                            .padding(horizontal = 16.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text("Cool-Lock", fontWeight = FontWeight.Bold, color = appColors.textPrimary, fontSize = 20.sp)
-                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            if (supportsMyou) {
-                                                Text("Material You", color = appColors.textSecondary, fontSize = 12.sp)
-                                                Switch(
-                                                    checked = materialYouEnabled,
-                                                    onCheckedChange = { setMaterialYou(it) },
-                                                    modifier = Modifier.height(24.dp),
-                                                    colors = SwitchDefaults.colors(
-                                                        checkedThumbColor = appColors.accentPrimary,
-                                                        checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
-                                                        uncheckedThumbColor = appColors.textSecondary,
-                                                        uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
-                                                    )
-                                                )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(onClick = { showSettings = true }) {
+                                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = appColors.textSecondary)
                                             }
                                             IconButton(onClick = { refreshData(force = true) }, enabled = moduleState != ModuleState.Loading) {
                                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = appColors.textSecondary)
@@ -1172,18 +1211,98 @@ fun MainScreen(cacheManager: CacheManager) {
                                 }
                             }
                         }
+                    }
 
+                    // Settings bottom sheet
+                    if (showSettings) {
+                        androidx.compose.material3.ModalBottomSheet(
+                            onDismissRequest = { showSettings = false },
+                            containerColor = appColors.background,
+                            tonalElevation = 0.dp
+                        ) {
+                            val isDark = isSystemInDarkTheme()
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("Settings", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = appColors.textPrimary)
+                                Spacer(Modifier.height(8.dp))
+
+                                LiquidGlassSurface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f),
+                                    bloomAlpha = if (isDark) 0.12f else 0.18f
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Liquid Glass", fontWeight = FontWeight.SemiBold, color = appColors.textPrimary, fontSize = 15.sp)
+                                            Text("Frosted glass surfaces", color = appColors.textSecondary, fontSize = 12.sp)
+                                        }
+                                        Switch(
+                                            checked = liquidGlassEnabled,
+                                            onCheckedChange = { setLiquidGlass(it) },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = appColors.accentPrimary,
+                                                checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
+                                                uncheckedThumbColor = appColors.textSecondary,
+                                                uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
+                                            )
+                                        )
+                                    }
+                                }
+
+                                if (supportsMyou) {
+                                    LiquidGlassSurface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(20.dp),
+                                        tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f),
+                                        bloomAlpha = if (isDark) 0.12f else 0.18f
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column {
+                                                Text("Material You", fontWeight = FontWeight.SemiBold, color = appColors.textPrimary, fontSize = 15.sp)
+                                                Text("Wallpaper-based colours", color = appColors.textSecondary, fontSize = 12.sp)
+                                            }
+                                            Switch(
+                                                checked = materialYouEnabled,
+                                                onCheckedChange = { setMaterialYou(it) },
+                                                colors = SwitchDefaults.colors(
+                                                    checkedThumbColor = appColors.accentPrimary,
+                                                    checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
+                                                    uncheckedThumbColor = appColors.textSecondary,
+                                                    uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(16.dp))
+                            }
+                        }
+                    }
                     } // end Box(fillMaxSize)
                 } // end is ModuleState.Success
             } // end when
         } // end Scaffold Box
-    } // end Scaffold
-} // end MainScreen
+    } // end Scaffold (= MainScreen close)
 
 @Composable
 fun ModuleList(
     modules: List<InstalledModule>,
     showEmptyMessage: Boolean = false,
+    listState: LazyListState = rememberLazyListState(),
     onModuleClick: (InstalledModule) -> Unit,
     onWebsiteClick: (String) -> Unit,
     onUpdateClick: (InstalledModule) -> Unit,
@@ -1204,7 +1323,8 @@ fun ModuleList(
         }
     } else {
         LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+            state = listState,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 200.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(items = modules, key = { it.packageName }) { module ->
