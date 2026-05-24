@@ -48,6 +48,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -101,50 +103,103 @@ data class AppColors(
 )
 
 val DarkAppColors = AppColors(
-    background        = Color(0xFF000000),
-    surface           = Color(0xFF1E1E1E),
-    cardBackground    = Color(0xFF141414),
-    iconBox           = Color(0xFF1C1C1C),
-    textPrimary       = Color.White.copy(alpha = 0.9f),
-    textSecondary     = Color.White.copy(alpha = 0.6f),
-    tabActive         = Color(0xFF1565C0),
-    tabBarBackground  = Color(0xFF0D2A6E),
-    tabBarScrimEnd    = Color.Black,
-    pillBarBg         = Color(0xFF0D47A1),
-    openButtonBg      = Color(0xFF1A1A3A),
-    installButtonBg   = Color(0xFF0A1F4E),
-    updateButtonBg    = Color(0xFF2A3010),
+    background        = Color(0xFF060608),
+    surface           = Color(0xFF0F0F14),
+    cardBackground    = Color(0x18FFFFFF),  // glass tint
+    iconBox           = Color(0xFF1C1C1E),
+    textPrimary       = Color.White.copy(alpha = 0.92f),
+    textSecondary     = Color.White.copy(alpha = 0.52f),
+    tabActive         = Color(0x28FFFFFF),
+    tabBarBackground  = Color(0x14FFFFFF),
+    tabBarScrimEnd    = Color(0xFF060608),
+    pillBarBg         = Color(0x14FFFFFF),
+    openButtonBg      = Color(0x22FFFFFF),
+    installButtonBg   = Color(0x22FFFFFF),
+    updateButtonBg    = Color(0x22FFFFFF),
     buttonTextColor   = Color.White,
-    updateLatestText  = Color(0xFFB8860B),
-    currentVersionText= Color(0xFF64B5F6),
+    updateLatestText  = Color(0xFFFFD060),
+    currentVersionText= Color(0xFF60C8FF),
     websiteIconTint   = Color.White.copy(alpha = 0.35f),
-    titleBarBackground= Color(0xFF000000),
-    accentPrimary     = Color(0xFF8A2BE2),
-    badgeBg           = Color(0xFF2A3010)
+    titleBarBackground= Color(0xFF060608),
+    accentPrimary     = Color(0xFFBFA8FF),
+    badgeBg           = Color(0xFFFF6060)
 )
 
 val LightAppColors = AppColors(
-    background        = Color(0xFFF2F2F7),
-    surface           = Color(0xFFFFFFFF),
-    cardBackground    = Color(0xFFFFFFFF),
+    background        = Color(0xFFE8EAF0),
+    surface           = Color(0xFFF4F4F8),
+    cardBackground    = Color(0x28FFFFFF),
     iconBox           = Color(0xFFEEEEF4),
     textPrimary       = Color(0xFF1C1C1E),
     textSecondary     = Color(0xFF6C6C70),
-    tabActive         = Color(0xFF1976D2),
-    tabBarBackground  = Color(0xFF1565C0),
-    tabBarScrimEnd    = Color(0xFFF2F2F7),
-    pillBarBg         = Color(0xFF1565C0),
-    openButtonBg      = Color(0xFFDDDDF0),
-    installButtonBg   = Color(0xFFD0E0FF),
-    updateButtonBg    = Color(0xFFE8F0C8),
-    buttonTextColor   = Color.Black,
-    updateLatestText  = Color(0xFF8B6914),
+    tabActive         = Color(0x30000000),
+    tabBarBackground  = Color(0x18000000),
+    tabBarScrimEnd    = Color(0xFFE8EAF0),
+    pillBarBg         = Color(0x18FFFFFF),
+    openButtonBg      = Color(0x28FFFFFF),
+    installButtonBg   = Color(0x28FFFFFF),
+    updateButtonBg    = Color(0x28FFFFFF),
+    buttonTextColor   = Color(0xFF1C1C1E),
+    updateLatestText  = Color(0xFF8B5E00),
     currentVersionText= Color(0xFF1565C0),
     websiteIconTint   = Color(0xFF6C6C70),
-    titleBarBackground= Color(0xFFF2F2F7),
+    titleBarBackground= Color(0xFFE8EAF0),
     accentPrimary     = Color(0xFF6B3FA0),
-    badgeBg           = Color(0xFF7A8C2A)
+    badgeBg           = Color(0xFFD93025)
 )
+
+// ── Liquid Glass surface composable ──────────────────────────────────────────
+// Renders a frosted-glass pill/rounded rect: blur bloom + tinted fill +
+// specular rim (bright top edge) + soft inner glow.
+@Composable
+fun LiquidGlassSurface(
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(50.dp),
+    tint: Color = Color.White.copy(alpha = 0.12f),
+    bloomAlpha: Float = 0.18f,
+    rimAlpha: Float = 0.35f,
+    content: @Composable BoxScope.() -> Unit = {}
+) {
+    val isDark = isSystemInDarkTheme()
+    val bloomColor = if (isDark) Color.White.copy(alpha = bloomAlpha) else Color.Black.copy(alpha = bloomAlpha * 0.4f)
+    val rimColor   = if (isDark) Color.White.copy(alpha = rimAlpha)   else Color.White.copy(alpha = rimAlpha * 1.2f)
+
+    Box(modifier = modifier) {
+        // Layer 1 — blur bloom (gives the frosted depth)
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .blur(32.dp)
+                .background(bloomColor)
+        )
+        // Layer 2 — semi-transparent tinted glass fill
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(tint)
+                .drawBehind {
+                    // specular rim — thin bright line across the top
+                    val rimH = 1.5.dp.toPx()
+                    drawRoundRect(
+                        color = rimColor,
+                        topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                        size = androidx.compose.ui.geometry.Size(size.width, rimH),
+                        cornerRadius = when (shape) {
+                            is RoundedCornerShape -> {
+                                val r = (size.height / 2f).coerceAtMost(size.width / 2f)
+                                androidx.compose.ui.geometry.CornerRadius(r, r)
+                            }
+                            else -> androidx.compose.ui.geometry.CornerRadius(0f)
+                        }
+                    )
+                }
+        )
+        // Layer 3 — content on top
+        content()
+    }
+}
 
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }
 val LocalMaterialYou = staticCompositionLocalOf { false }
@@ -188,7 +243,7 @@ fun AppTheme(content: @Composable () -> Unit) {
             background         = dynamicScheme.background,
             surface            = dynamicScheme.surface,
             cardBackground     = dynamicScheme.surfaceContainer,
-            iconBox            = dynamicScheme.secondaryContainer,
+            iconBox            = if (isDark) Color(0xFF1C1C1C) else Color(0xFFEEEEF4),
             textPrimary        = dynamicScheme.onBackground,
             textSecondary      = dynamicScheme.onSurfaceVariant,
             tabActive          = dynamicScheme.primaryContainer,
@@ -969,117 +1024,53 @@ fun MainScreen(cacheManager: CacheManager) {
                             )
                         }
 
-                        // Top title + Material You toggle
-                        Row(
+                        // Bottom overlay: gradient scrim + glass pill tab bar + title row
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .align(Alignment.TopCenter)
-                                .background(
-                                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        colors = listOf(
-                                            appColors.background,
-                                            appColors.background.copy(alpha = 0.9f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                )
-                                .padding(horizontal = 16.dp, vertical = 10.dp)
-                                .statusBarsPadding(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .align(Alignment.BottomCenter)
                         ) {
-                            Text(
-                                "Cool-Lock",
-                                fontWeight = FontWeight.Bold,
-                                color = appColors.textPrimary,
-                                fontSize = 20.sp
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (supportsMyou) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            "Material You",
-                                            color = appColors.textSecondary,
-                                            fontSize = 12.sp
-                                        )
-                                        Switch(
-                                            checked = materialYouEnabled,
-                                            onCheckedChange = { setMaterialYou(it) },
-                                            modifier = Modifier.height(24.dp),
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = appColors.accentPrimary,
-                                                checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
-                                                uncheckedThumbColor = appColors.textSecondary,
-                                                uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
-                                            )
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                }
-                                IconButton(
-                                    onClick = { refreshData(force = true) },
-                                    enabled = moduleState != ModuleState.Loading
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Refresh,
-                                        contentDescription = "Refresh",
-                                        tint = appColors.textSecondary
-                                    )
-                                }
-                            }
-                        }
-                            // Gradient scrim + floating pill tab bar
+                            // Gradient scrim fading upward
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .height(160.dp)
                                     .align(Alignment.BottomCenter)
-                            ) {
-                                // Gradient scrim
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(100.dp)
-                                        .align(Alignment.BottomCenter)
-                                        .background(
-                                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                                colors = listOf(
-                                                    Color.Transparent,
-                                                    appColors.tabBarScrimEnd.copy(alpha = 0.5f),
-                                                    appColors.tabBarScrimEnd.copy(alpha = 0.9f),
-                                                    appColors.tabBarScrimEnd
-                                                )
+                                    .background(
+                                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                appColors.background.copy(alpha = 0.6f),
+                                                appColors.background.copy(alpha = 0.92f),
+                                                appColors.background
                                             )
                                         )
-                                )
+                                    )
+                            )
 
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // Glass pill tab bar
                                 val isDark = isSystemInDarkTheme()
-                                val barColor = appColors.background
-
-                                // Blur bloom layer (behind content, purely visual)
-                                Box(
+                                LiquidGlassSurface(
                                     modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(horizontal = 6.dp, vertical = 10.dp)
-                                        .clip(RoundedCornerShape(50.dp))
-                                        .blur(30.dp)
-                                        .background(barColor.copy(alpha = 0.9f))
-                                        .height(52.dp)
-                                        .fillMaxWidth(0.92f)
-                                )
-                                // Content layer on top
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .padding(horizontal = 6.dp, vertical = 10.dp)
-                                        .clip(RoundedCornerShape(50.dp))
-                                        .background(barColor.copy(alpha = 0.55f))
-                                        .padding(horizontal = 4.dp, vertical = 3.dp)
+                                        .padding(horizontal = 6.dp)
+                                        .fillMaxWidth()
+                                        .height(56.dp),
+                                    shape = RoundedCornerShape(50.dp),
+                                    tint = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f),
+                                    bloomAlpha = if (isDark) 0.14f else 0.20f,
+                                    rimAlpha = if (isDark) 0.30f else 0.55f
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(0.92f),
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .padding(horizontal = 4.dp, vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceEvenly,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -1087,36 +1078,34 @@ fun MainScreen(cacheManager: CacheManager) {
                                             val isSelected = pagerState.currentPage == index
                                             val iconTint by animateColorAsState(
                                                 targetValue = if (isSelected) appColors.textPrimary else appColors.textSecondary,
-                                                animationSpec = tween(durationMillis = 200)
+                                                animationSpec = tween(200)
                                             )
                                             val icon = when (title) {
-                                                "Updates" -> Icons.Default.SystemUpdate
-                                                "Make up" -> Icons.Default.Palette
-                                                else -> Icons.Default.Style
+                                                "Updates"  -> Icons.Default.SystemUpdate
+                                                "Make up"  -> Icons.Default.Palette
+                                                else       -> Icons.Default.Style
                                             }
-
-                                            // Selector: blur bloom behind, semi-transparent fill in front
-                                            Box(contentAlignment = Alignment.Center) {
-                                                // Blur layer for selected tab
+                                            // Per-tab: glass selector when active
+                                            Box(
+                                                modifier = Modifier.weight(1f),
+                                                contentAlignment = Alignment.Center
+                                            ) {
                                                 if (isSelected) {
-                                                    Box(
+                                                    LiquidGlassSurface(
                                                         modifier = Modifier
-                                                            .matchParentSize()
-                                                            .clip(RoundedCornerShape(50.dp))
-                                                            .blur(20.dp)
-                                                            .background(appColors.tabActive.copy(alpha = 0.8f))
+                                                            .fillMaxHeight()
+                                                            .fillMaxWidth(0.92f)
+                                                            .clip(RoundedCornerShape(50.dp)),
+                                                        shape = RoundedCornerShape(50.dp),
+                                                        tint = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.65f),
+                                                        bloomAlpha = if (isDark) 0.20f else 0.25f,
+                                                        rimAlpha = if (isDark) 0.45f else 0.70f
                                                     )
                                                 }
-                                                // Actual clickable content box
                                                 Box(
                                                     modifier = Modifier
-                                                        .clip(RoundedCornerShape(50.dp))
-                                                        .background(
-                                                            if (isSelected) appColors.tabActive.copy(alpha = 0.45f)
-                                                            else Color.Transparent
-                                                        )
-                                                        .clickable { coroutineScope.launch { pagerState.animateScrollToPage(index) } }
-                                                        .padding(horizontal = 20.dp, vertical = 7.dp),
+                                                        .fillMaxSize()
+                                                        .clickable { coroutineScope.launch { pagerState.animateScrollToPage(index) } },
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Column(
@@ -1124,23 +1113,59 @@ fun MainScreen(cacheManager: CacheManager) {
                                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                                     ) {
                                                         if (title == "Updates" && updatableModules.isNotEmpty()) {
-                                                            BadgedBox(
-                                                                badge = { Badge(containerColor = appColors.badgeBg, contentColor = Color.White) { Text("${updatableModules.size}", fontSize = 9.sp) } }
-                                                            ) {
+                                                            BadgedBox(badge = {
+                                                                Badge(containerColor = appColors.badgeBg, contentColor = Color.White) {
+                                                                    Text("${updatableModules.size}", fontSize = 9.sp)
+                                                                }
+                                                            }) {
                                                                 Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
                                                             }
                                                         } else {
                                                             Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
                                                         }
-                                                        Text(
-                                                            title,
-                                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                                            color = iconTint,
-                                                            fontSize = 10.sp,
-                                                            letterSpacing = 0.sp
-                                                        )
+                                                        Text(title, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal, color = iconTint, fontSize = 10.sp, letterSpacing = 0.sp)
                                                     }
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Title + Material You + Refresh — glass row
+                                LiquidGlassSurface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    shape = RoundedCornerShape(28.dp),
+                                    tint = if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f),
+                                    bloomAlpha = if (isDark) 0.10f else 0.16f,
+                                    rimAlpha = if (isDark) 0.22f else 0.45f
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Cool-Lock", fontWeight = FontWeight.Bold, color = appColors.textPrimary, fontSize = 20.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            if (supportsMyou) {
+                                                Text("Material You", color = appColors.textSecondary, fontSize = 12.sp)
+                                                Switch(
+                                                    checked = materialYouEnabled,
+                                                    onCheckedChange = { setMaterialYou(it) },
+                                                    modifier = Modifier.height(24.dp),
+                                                    colors = SwitchDefaults.colors(
+                                                        checkedThumbColor = appColors.accentPrimary,
+                                                        checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
+                                                        uncheckedThumbColor = appColors.textSecondary,
+                                                        uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
+                                                    )
+                                                )
+                                            }
+                                            IconButton(onClick = { refreshData(force = true) }, enabled = moduleState != ModuleState.Loading) {
+                                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = appColors.textSecondary)
                                             }
                                         }
                                     }
@@ -1204,16 +1229,20 @@ fun ModuleCard(
     onAppInfoClick: () -> Unit,
     onOpenClick: () -> Unit
 ) {
-    val pillShape = RoundedCornerShape(50.dp)
-    Card(
+    val isDark = isSystemInDarkTheme()
+    val pillShape = RoundedCornerShape(28.dp)
+    LiquidGlassSurface(
+        modifier = Modifier.fillMaxWidth().clip(pillShape).clickable(onClick = onAppInfoClick),
         shape = pillShape,
-        colors = CardDefaults.cardColors(containerColor = appColors.cardBackground),
-        modifier = Modifier.fillMaxWidth().clip(pillShape).clickable(onClick = onAppInfoClick)
+        tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.55f),
+        bloomAlpha = if (isDark) 0.12f else 0.22f,
+        rimAlpha = if (isDark) 0.28f else 0.55f
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Icon box — neutral, not affected by glass
             Box(
                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
                     .background(appColors.iconBox),
@@ -1238,34 +1267,32 @@ fun ModuleCard(
             ) {
                 if (module.isInstalled) {
                     if (module.isUpdateAvailable) {
-                        Button(
-                            onClick = onUpdateClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = appColors.updateButtonBg, contentColor = appColors.buttonTextColor),
-                            shape = RoundedCornerShape(50.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                            modifier = Modifier.height(36.dp).widthIn(min = 80.dp)
-                        ) { Text("Update", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                        GlassButton(onClick = onUpdateClick, label = "Update")
                     }
-                    Button(
-                        onClick = onOpenClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = appColors.openButtonBg, contentColor = appColors.buttonTextColor),
-                        shape = RoundedCornerShape(50.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                        modifier = Modifier.height(36.dp).widthIn(min = 80.dp)
-                    ) { Text("Open", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                    GlassButton(onClick = onOpenClick, label = "Open")
                 } else {
-                    Button(
-                        onClick = onWebsiteClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = appColors.installButtonBg, contentColor = appColors.buttonTextColor),
-                        shape = RoundedCornerShape(50.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                        modifier = Modifier.height(36.dp).widthIn(min = 80.dp)
-                    ) { Text("Install", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                    GlassButton(onClick = onWebsiteClick, label = "Install")
                 }
             }
             IconButton(onClick = onWebsiteClick) {
                 Icon(Icons.Default.Public, contentDescription = "Go to Website", tint = appColors.websiteIconTint)
             }
+        }
+    }
+}
+
+@Composable
+fun GlassButton(onClick: () -> Unit, label: String) {
+    val isDark = isSystemInDarkTheme()
+    LiquidGlassSurface(
+        modifier = Modifier.height(36.dp).widthIn(min = 80.dp).clip(RoundedCornerShape(50.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(50.dp),
+        tint = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.6f),
+        bloomAlpha = if (isDark) 0.10f else 0.18f,
+        rimAlpha = if (isDark) 0.40f else 0.65f
+    ) {
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+            Text(label, fontWeight = FontWeight.SemiBold, color = appColors.textPrimary, fontSize = 13.sp)
         }
     }
 }
@@ -1316,7 +1343,7 @@ fun ErrorScreen(errorMessage: String, onRetry: () -> Unit) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(errorMessage, color = appColors.textSecondary, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(24.dp))
-        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = appColors.accentPrimary)) {
+        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = appColors.accentPrimary.copy(alpha = 0.85f))) {
             Text("Retry", color = Color.White)
         }
     }
