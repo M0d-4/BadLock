@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -111,24 +112,24 @@ data class AppColors(
 )
 
 val DarkAppColors = AppColors(
-    background        = Color(0xFF060608),
-    surface           = Color(0xFF0F0F14),
-    cardBackground    = Color(0x18FFFFFF),  // glass tint
+    background        = Color(0xFF0A0A0F),
+    surface           = Color(0xFF141420),
+    cardBackground    = Color(0xFF1E1E2E),
     iconBox           = Color(0xFF1C1C1E),
     textPrimary       = Color.White.copy(alpha = 0.92f),
     textSecondary     = Color.White.copy(alpha = 0.52f),
-    tabActive         = Color(0x28FFFFFF),
-    tabBarBackground  = Color(0x14FFFFFF),
-    tabBarScrimEnd    = Color(0xFF060608),
-    pillBarBg         = Color(0x14FFFFFF),
-    openButtonBg      = Color(0x22FFFFFF),
-    installButtonBg   = Color(0x22FFFFFF),
-    updateButtonBg    = Color(0x22FFFFFF),
+    tabActive         = Color(0xFF2D2D5E),
+    tabBarBackground  = Color(0xFF1A1A3A),
+    tabBarScrimEnd    = Color(0xFF0A0A0F),
+    pillBarBg         = Color(0xFF1A1A3A),
+    openButtonBg      = Color(0xFF1A1A3A),
+    installButtonBg   = Color(0xFF0A2040),
+    updateButtonBg    = Color(0xFF1A2800),
     buttonTextColor   = Color.White,
     updateLatestText  = Color(0xFFFFD060),
     currentVersionText= Color(0xFF60C8FF),
     websiteIconTint   = Color.White.copy(alpha = 0.35f),
-    titleBarBackground= Color(0xFF060608),
+    titleBarBackground= Color(0xFF0A0A0F),
     accentPrimary     = Color(0xFFBFA8FF),
     badgeBg           = Color(0xFFFF6060)
 )
@@ -136,17 +137,17 @@ val DarkAppColors = AppColors(
 val LightAppColors = AppColors(
     background        = Color(0xFFE8EAF0),
     surface           = Color(0xFFF4F4F8),
-    cardBackground    = Color(0x28FFFFFF),
+    cardBackground    = Color(0xFFFFFFFF),
     iconBox           = Color(0xFFEEEEF4),
     textPrimary       = Color(0xFF1C1C1E),
     textSecondary     = Color(0xFF6C6C70),
-    tabActive         = Color(0x30000000),
-    tabBarBackground  = Color(0x18000000),
+    tabActive         = Color(0xFFD0D8F0),
+    tabBarBackground  = Color(0xFFCDD4E8),
     tabBarScrimEnd    = Color(0xFFE8EAF0),
-    pillBarBg         = Color(0x18FFFFFF),
-    openButtonBg      = Color(0x28FFFFFF),
-    installButtonBg   = Color(0x28FFFFFF),
-    updateButtonBg    = Color(0x28FFFFFF),
+    pillBarBg         = Color(0xFFCDD4E8),
+    openButtonBg      = Color(0xFFD8DEF8),
+    installButtonBg   = Color(0xFFCCDDFF),
+    updateButtonBg    = Color(0xFFD0EEC0),
     buttonTextColor   = Color(0xFF1C1C1E),
     updateLatestText  = Color(0xFF8B5E00),
     currentVersionText= Color(0xFF1565C0),
@@ -156,9 +157,9 @@ val LightAppColors = AppColors(
     badgeBg           = Color(0xFFD93025)
 )
 
-// ── Liquid Glass surface composable ──────────────────────────────────────────
-// Renders a frosted-glass pill/rounded rect: blur bloom + tinted fill +
-// specular rim (bright top edge) + soft inner glow.
+// ── Liquid Glass surface ──────────────────────────────────────────────────────
+// Real liquid glass: frosted blur bloom + refractive highlight sweep +
+// inner shadow at bottom + subtle iridescent edge shimmer.
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
@@ -170,11 +171,61 @@ fun LiquidGlassSurface(
 ) {
     val isDark = isSystemInDarkTheme()
     val glassEnabled = LocalLiquidGlassEnabled.current
-    val bloomColor = if (isDark) Color.White.copy(alpha = bloomAlpha) else Color.Black.copy(alpha = bloomAlpha * 0.4f)
+
+    if (!glassEnabled) {
+        // Non-glass fallback: solid surface using card color
+        Box(modifier = modifier) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .background(appColors.cardBackground)
+            )
+            content()
+        }
+        return
+    }
+
+    // Animate bloom so it fades in/out with tint instead of popping as a square
+    val animatedBloom by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (tint.alpha > 0.01f) bloomAlpha else 0f,
+        animationSpec = tween(200), label = "bloom"
+    )
+    val bloomColor = if (isDark)
+        Color.White.copy(alpha = animatedBloom)
+    else
+        Color.Black.copy(alpha = animatedBloom * 0.35f)
+
+    // Refractive highlight: angled white sweep across the top-left portion
+    val highlightAlpha = if (isDark) 0.22f else 0.55f
+    val highlight = Brush.linearGradient(
+        0.0f to Color.White.copy(alpha = highlightAlpha),
+        0.35f to Color.White.copy(alpha = highlightAlpha * 0.4f),
+        0.6f to Color.Transparent,
+        1.0f to Color.Transparent,
+        start = androidx.compose.ui.geometry.Offset(0f, 0f),
+        end = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, Float.MAX_VALUE)
+    )
+    // Inner shadow at bottom edge (depth illusion)
+    val innerShadow = Brush.verticalGradient(
+        0.0f to Color.Transparent,
+        0.75f to Color.Transparent,
+        1.0f to Color.Black.copy(alpha = if (isDark) 0.28f else 0.10f)
+    )
+    // Iridescent edge: subtle colour shimmer along bottom-right
+    val iridescence = Brush.linearGradient(
+        0.0f to Color.Transparent,
+        0.65f to Color.Transparent,
+        0.80f to Color(0xFF80C8FF).copy(alpha = if (isDark) 0.12f else 0.08f),
+        0.90f to Color(0xFFB0A0FF).copy(alpha = if (isDark) 0.10f else 0.06f),
+        1.0f to Color.Transparent,
+        start = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, 0f),
+        end = androidx.compose.ui.geometry.Offset(0f, Float.MAX_VALUE)
+    )
 
     Box(modifier = modifier) {
-        if (glassEnabled) {
-            // Layer 1 — heavy blur bloom for deep frosted look
+        // Layer 1 — blur bloom (frosted depth)
+        if (animatedBloom > 0.005f) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -183,14 +234,35 @@ fun LiquidGlassSurface(
                     .background(bloomColor)
             )
         }
-        // Layer 2 — semi-transparent tinted fill (no rim line)
+        // Layer 2 — base glass tint
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
-                .background(if (glassEnabled) tint else appColors.cardBackground)
+                .background(tint)
         )
-        // Layer 3 — content
+        // Layer 3 — refractive highlight sweep
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(highlight)
+        )
+        // Layer 4 — inner bottom shadow
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(innerShadow)
+        )
+        // Layer 5 — iridescent edge shimmer
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(iridescence)
+        )
+        // Layer 6 — content
         content()
     }
 }
@@ -1115,7 +1187,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                         .fillMaxWidth()
                                         .height(56.dp),
                                     shape = RoundedCornerShape(50.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f),
+                                    tint = if (liquidGlassEnabled)
+                                        (if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f))
+                                    else appColors.pillBarBg,
                                     bloomAlpha = if (isDark) 0.18f else 0.24f
                                 ) {
                                     Row(
@@ -1133,7 +1207,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                             )
                                             val selectorTint by animateColorAsState(
                                                 targetValue = if (isSelected)
-                                                    if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.65f)
+                                                    if (liquidGlassEnabled)
+                                                        (if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.65f))
+                                                    else appColors.tabActive
                                                 else Color.Transparent,
                                                 animationSpec = tween(200), label = "selectorTint"
                                             )
@@ -1190,7 +1266,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                         .fillMaxWidth()
                                         .padding(horizontal = 6.dp, vertical = 6.dp),
                                     shape = RoundedCornerShape(28.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f),
+                                    tint = if (liquidGlassEnabled)
+                                        (if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f))
+                                    else appColors.titleBarBackground,
                                     bloomAlpha = if (isDark) 0.12f else 0.18f
                                 ) {
                                     Row(
@@ -1235,7 +1313,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                 LiquidGlassSurface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(20.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f),
+                                    tint = if (liquidGlassEnabled)
+                                        (if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f))
+                                    else appColors.surface,
                                     bloomAlpha = if (isDark) 0.12f else 0.18f
                                 ) {
                                     Row(
@@ -1264,7 +1344,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                     LiquidGlassSurface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(20.dp),
-                                        tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f),
+                                        tint = if (liquidGlassEnabled)
+                                            (if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f))
+                                        else appColors.surface,
                                         bloomAlpha = if (isDark) 0.12f else 0.18f
                                     ) {
                                         Row(
@@ -1326,7 +1408,7 @@ fun ModuleList(
     } else {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 200.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 160.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(items = modules, key = { it.packageName }) { module ->
@@ -1407,15 +1489,22 @@ fun ModuleCard(
 @Composable
 fun GlassButton(onClick: () -> Unit, label: String) {
     val isDark = isSystemInDarkTheme()
+    val glassEnabled = LocalLiquidGlassEnabled.current
+    val nonGlassBg = when (label) {
+        "Update"  -> appColors.updateButtonBg
+        "Open"    -> appColors.openButtonBg
+        "Install" -> appColors.installButtonBg
+        else      -> appColors.openButtonBg
+    }
     LiquidGlassSurface(
         modifier = Modifier.height(36.dp).widthIn(min = 80.dp).clip(RoundedCornerShape(50.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(50.dp),
-        tint = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.6f),
+        tint = if (glassEnabled) (if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.6f)) else nonGlassBg,
         bloomAlpha = if (isDark) 0.10f else 0.18f,
         rimAlpha = if (isDark) 0.40f else 0.65f
     ) {
         Box(modifier = Modifier.matchParentSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-            Text(label, fontWeight = FontWeight.SemiBold, color = appColors.textPrimary, fontSize = 13.sp)
+            Text(label, fontWeight = FontWeight.SemiBold, color = appColors.buttonTextColor, fontSize = 13.sp)
         }
     }
 }
