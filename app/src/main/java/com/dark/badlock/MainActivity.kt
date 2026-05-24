@@ -26,6 +26,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.animation.AnimatedVisibility
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.SignalWifiOff
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -1201,7 +1203,7 @@ fun MainScreen(cacheManager: CacheManager) {
                                         Text("Cool-Lock", fontWeight = FontWeight.Bold, color = appColors.textPrimary, fontSize = 20.sp)
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(onClick = { showSettings = true }) {
-                                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = appColors.textSecondary)
+                                                Icon(Icons.Default.Tune, contentDescription = "Settings", tint = appColors.textSecondary)
                                             }
                                             IconButton(onClick = { refreshData(force = true) }, enabled = moduleState != ModuleState.Loading) {
                                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = appColors.textSecondary)
