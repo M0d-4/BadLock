@@ -163,106 +163,79 @@ fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(50.dp),
     tint: Color = Color.White.copy(alpha = 0.12f),
+    solidColor: Color = Color.Unspecified,  // used when glass is OFF
     bloomAlpha: Float = 0.18f,
     rimAlpha: Float = 0.35f,
     content: @Composable BoxScope.() -> Unit = {}
 ) {
     val isDark = isSystemInDarkTheme()
     val glassEnabled = LocalLiquidGlassEnabled.current
+    val fallback = if (solidColor != Color.Unspecified) solidColor else appColors.cardBackground
 
     if (!glassEnabled) {
         Box(modifier = modifier) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .background(appColors.cardBackground)
-            )
+            Box(Modifier.matchParentSize().clip(shape).background(fallback))
             content()
         }
         return
     }
 
-    // Drive all layers off a single animated alpha so nothing shows when transparent
-    val animatedAlpha by androidx.compose.animation.core.animateFloatAsState(
+    // Single animated alpha drives all layers — prevents rectangle flash on tab switch
+    val animatedAlpha by animateFloatAsState(
         targetValue = tint.alpha,
         animationSpec = tween(200), label = "glassAlpha"
     )
 
-    // Skip rendering entirely when fully transparent (prevents crash + rectangle flash)
     Box(modifier = modifier) {
         if (animatedAlpha > 0.005f) {
-            val bloomColor = if (isDark)
-                Color.White.copy(alpha = bloomAlpha * animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
-            else
-                Color.Black.copy(alpha = bloomAlpha * 0.35f * animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
+            val ratio = animatedAlpha / tint.alpha.coerceAtLeast(0.01f)
 
-            val scaledTint = tint.copy(alpha = animatedAlpha)
-            val highlightAlpha = (if (isDark) 0.22f else 0.50f) * (animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
-            val shadowAlpha   = (if (isDark) 0.28f else 0.10f) * (animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
-            val iriAlpha      = animatedAlpha / tint.alpha.coerceAtLeast(0.01f)
-
-            val highlight = Brush.linearGradient(
-                0.0f to Color.White.copy(alpha = highlightAlpha),
-                0.40f to Color.White.copy(alpha = highlightAlpha * 0.35f),
-                0.65f to Color.Transparent,
-                1.0f  to Color.Transparent,
-                start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                end   = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, Float.MAX_VALUE)
-            )
-            val innerShadow = Brush.verticalGradient(
-                0.0f  to Color.Transparent,
-                0.72f to Color.Transparent,
-                1.0f  to Color.Black.copy(alpha = shadowAlpha)
-            )
-            val iridescence = Brush.linearGradient(
-                0.0f  to Color.Transparent,
-                0.62f to Color.Transparent,
-                0.78f to Color(0xFF80C8FF).copy(alpha = 0.12f * iriAlpha),
-                0.90f to Color(0xFFB0A0FF).copy(alpha = 0.10f * iriAlpha),
-                1.0f  to Color.Transparent,
-                start = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, 0f),
-                end   = androidx.compose.ui.geometry.Offset(0f, Float.MAX_VALUE)
-            )
-
-            // Layer 1 — blur bloom
+            // Layer 1 — frosted tinted fill (no blur — blur crashes on dynamic composables)
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .blur(48.dp)
-                    .background(bloomColor)
+                Modifier.matchParentSize().clip(shape)
+                    .background(tint.copy(alpha = animatedAlpha))
             )
-            // Layer 2 — base tint
+            // Layer 2 — refractive highlight sweep (angled white, top-left → center)
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .background(scaledTint)
+                Modifier.matchParentSize().clip(shape)
+                    .background(
+                        Brush.linearGradient(
+                            0.0f  to Color.White.copy(alpha = (if (isDark) 0.28f else 0.55f) * ratio),
+                            0.42f to Color.White.copy(alpha = (if (isDark) 0.08f else 0.18f) * ratio),
+                            0.65f to Color.Transparent,
+                            1.0f  to Color.Transparent,
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end   = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, Float.MAX_VALUE)
+                        )
+                    )
             )
-            // Layer 3 — refractive highlight
+            // Layer 3 — inner bottom shadow (depth / thickness illusion)
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .background(highlight)
+                Modifier.matchParentSize().clip(shape)
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f  to Color.Transparent,
+                            0.70f to Color.Transparent,
+                            1.0f  to Color.Black.copy(alpha = (if (isDark) 0.35f else 0.12f) * ratio)
+                        )
+                    )
             )
-            // Layer 4 — inner bottom shadow
+            // Layer 4 — iridescent edge shimmer (bottom-right corner, blue→violet)
             Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .background(innerShadow)
-            )
-            // Layer 5 — iridescent shimmer
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .background(iridescence)
+                Modifier.matchParentSize().clip(shape)
+                    .background(
+                        Brush.linearGradient(
+                            0.0f  to Color.Transparent,
+                            0.60f to Color.Transparent,
+                            0.78f to Color(0xFF80C8FF).copy(alpha = 0.14f * ratio),
+                            0.90f to Color(0xFFB0A0FF).copy(alpha = 0.11f * ratio),
+                            1.0f  to Color.Transparent,
+                            start = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, 0f),
+                            end   = androidx.compose.ui.geometry.Offset(0f, Float.MAX_VALUE)
+                        )
+                    )
             )
         }
-        // Content always on top
         content()
     }
 }
@@ -1182,13 +1155,12 @@ fun MainScreen(cacheManager: CacheManager) {
                                 // Glass pill tab bar — selector uses animated tint (no pop-in box)
                                 LiquidGlassSurface(
                                     modifier = Modifier
-                                        .padding(horizontal = 6.dp)
+                                        .padding(horizontal = 16.dp)
                                         .fillMaxWidth()
-                                        .height(56.dp),
+                                        .height(64.dp),
                                     shape = RoundedCornerShape(50.dp),
-                                    tint = if (liquidGlassEnabled)
-                                        (if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f))
-                                    else appColors.pillBarBg,
+                                    tint = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f),
+                                    solidColor = appColors.pillBarBg,
                                     bloomAlpha = if (isDark) 0.18f else 0.24f
                                 ) {
                                     Row(
@@ -1206,9 +1178,7 @@ fun MainScreen(cacheManager: CacheManager) {
                                             )
                                             val selectorTint by animateColorAsState(
                                                 targetValue = if (isSelected)
-                                                    if (liquidGlassEnabled)
-                                                        (if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.65f))
-                                                    else appColors.tabActive
+                                                    if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.65f)
                                                 else Color.Transparent,
                                                 animationSpec = tween(200), label = "selectorTint"
                                             )
@@ -1228,6 +1198,7 @@ fun MainScreen(cacheManager: CacheManager) {
                                                         .clip(RoundedCornerShape(50.dp)),
                                                     shape = RoundedCornerShape(50.dp),
                                                     tint = selectorTint,
+                                                    solidColor = if (isSelected) appColors.tabActive else Color.Transparent,
                                                     bloomAlpha = if (isSelected) (if (isDark) 0.22f else 0.28f) else 0f
                                                 )
                                                 Box(
@@ -1265,9 +1236,8 @@ fun MainScreen(cacheManager: CacheManager) {
                                         .fillMaxWidth()
                                         .padding(horizontal = 6.dp, vertical = 6.dp),
                                     shape = RoundedCornerShape(28.dp),
-                                    tint = if (liquidGlassEnabled)
-                                        (if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f))
-                                    else appColors.titleBarBackground,
+                                    tint = if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f),
+                                    solidColor = appColors.titleBarBackground,
                                     bloomAlpha = if (isDark) 0.12f else 0.18f
                                 ) {
                                     Row(
@@ -1312,9 +1282,8 @@ fun MainScreen(cacheManager: CacheManager) {
                                 LiquidGlassSurface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(20.dp),
-                                    tint = if (liquidGlassEnabled)
-                                        (if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f))
-                                    else appColors.surface,
+                                    tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f),
+                                    solidColor = appColors.surface,
                                     bloomAlpha = if (isDark) 0.12f else 0.18f
                                 ) {
                                     Row(
@@ -1343,9 +1312,8 @@ fun MainScreen(cacheManager: CacheManager) {
                                     LiquidGlassSurface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(20.dp),
-                                        tint = if (liquidGlassEnabled)
-                                            (if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f))
-                                        else appColors.surface,
+                                        tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.50f),
+                                        solidColor = appColors.surface,
                                         bloomAlpha = if (isDark) 0.12f else 0.18f
                                     ) {
                                         Row(
@@ -1439,6 +1407,7 @@ fun ModuleCard(
         modifier = Modifier.fillMaxWidth().clip(pillShape).clickable(onClick = onAppInfoClick),
         shape = pillShape,
         tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.55f),
+        solidColor = appColors.cardBackground,
         bloomAlpha = if (isDark) 0.12f else 0.22f,
         rimAlpha = if (isDark) 0.28f else 0.55f
     ) {
@@ -1498,7 +1467,8 @@ fun GlassButton(onClick: () -> Unit, label: String) {
     LiquidGlassSurface(
         modifier = Modifier.height(36.dp).widthIn(min = 80.dp).clip(RoundedCornerShape(50.dp)).clickable(onClick = onClick),
         shape = RoundedCornerShape(50.dp),
-        tint = if (glassEnabled) (if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.6f)) else nonGlassBg,
+        tint = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.6f),
+        solidColor = nonGlassBg,
         bloomAlpha = if (isDark) 0.10f else 0.18f,
         rimAlpha = if (isDark) 0.40f else 0.65f
     ) {
