@@ -158,8 +158,6 @@ val LightAppColors = AppColors(
 )
 
 // ── Liquid Glass surface ──────────────────────────────────────────────────────
-// Real liquid glass: frosted blur bloom + refractive highlight sweep +
-// inner shadow at bottom + subtle iridescent edge shimmer.
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
@@ -173,7 +171,6 @@ fun LiquidGlassSurface(
     val glassEnabled = LocalLiquidGlassEnabled.current
 
     if (!glassEnabled) {
-        // Non-glass fallback: solid surface using card color
         Box(modifier = modifier) {
             Box(
                 modifier = Modifier
@@ -186,83 +183,86 @@ fun LiquidGlassSurface(
         return
     }
 
-    // Animate bloom so it fades in/out with tint instead of popping as a square
-    val animatedBloom by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (tint.alpha > 0.01f) bloomAlpha else 0f,
-        animationSpec = tween(200), label = "bloom"
-    )
-    val bloomColor = if (isDark)
-        Color.White.copy(alpha = animatedBloom)
-    else
-        Color.Black.copy(alpha = animatedBloom * 0.35f)
-
-    // Refractive highlight: angled white sweep across the top-left portion
-    val highlightAlpha = if (isDark) 0.22f else 0.55f
-    val highlight = Brush.linearGradient(
-        0.0f to Color.White.copy(alpha = highlightAlpha),
-        0.35f to Color.White.copy(alpha = highlightAlpha * 0.4f),
-        0.6f to Color.Transparent,
-        1.0f to Color.Transparent,
-        start = androidx.compose.ui.geometry.Offset(0f, 0f),
-        end = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, Float.MAX_VALUE)
-    )
-    // Inner shadow at bottom edge (depth illusion)
-    val innerShadow = Brush.verticalGradient(
-        0.0f to Color.Transparent,
-        0.75f to Color.Transparent,
-        1.0f to Color.Black.copy(alpha = if (isDark) 0.28f else 0.10f)
-    )
-    // Iridescent edge: subtle colour shimmer along bottom-right
-    val iridescence = Brush.linearGradient(
-        0.0f to Color.Transparent,
-        0.65f to Color.Transparent,
-        0.80f to Color(0xFF80C8FF).copy(alpha = if (isDark) 0.12f else 0.08f),
-        0.90f to Color(0xFFB0A0FF).copy(alpha = if (isDark) 0.10f else 0.06f),
-        1.0f to Color.Transparent,
-        start = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, 0f),
-        end = androidx.compose.ui.geometry.Offset(0f, Float.MAX_VALUE)
+    // Drive all layers off a single animated alpha so nothing shows when transparent
+    val animatedAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = tint.alpha,
+        animationSpec = tween(200), label = "glassAlpha"
     )
 
+    // Skip rendering entirely when fully transparent (prevents crash + rectangle flash)
     Box(modifier = modifier) {
-        // Layer 1 — blur bloom (frosted depth)
-        if (animatedBloom > 0.005f) {
+        if (animatedAlpha > 0.005f) {
+            val bloomColor = if (isDark)
+                Color.White.copy(alpha = bloomAlpha * animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
+            else
+                Color.Black.copy(alpha = bloomAlpha * 0.35f * animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
+
+            val scaledTint = tint.copy(alpha = animatedAlpha)
+            val highlightAlpha = (if (isDark) 0.22f else 0.50f) * (animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
+            val shadowAlpha   = (if (isDark) 0.28f else 0.10f) * (animatedAlpha / tint.alpha.coerceAtLeast(0.01f))
+            val iriAlpha      = animatedAlpha / tint.alpha.coerceAtLeast(0.01f)
+
+            val highlight = Brush.linearGradient(
+                0.0f to Color.White.copy(alpha = highlightAlpha),
+                0.40f to Color.White.copy(alpha = highlightAlpha * 0.35f),
+                0.65f to Color.Transparent,
+                1.0f  to Color.Transparent,
+                start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                end   = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, Float.MAX_VALUE)
+            )
+            val innerShadow = Brush.verticalGradient(
+                0.0f  to Color.Transparent,
+                0.72f to Color.Transparent,
+                1.0f  to Color.Black.copy(alpha = shadowAlpha)
+            )
+            val iridescence = Brush.linearGradient(
+                0.0f  to Color.Transparent,
+                0.62f to Color.Transparent,
+                0.78f to Color(0xFF80C8FF).copy(alpha = 0.12f * iriAlpha),
+                0.90f to Color(0xFFB0A0FF).copy(alpha = 0.10f * iriAlpha),
+                1.0f  to Color.Transparent,
+                start = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, 0f),
+                end   = androidx.compose.ui.geometry.Offset(0f, Float.MAX_VALUE)
+            )
+
+            // Layer 1 — blur bloom
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(shape)
-                    .blur(56.dp)
+                    .blur(48.dp)
                     .background(bloomColor)
             )
+            // Layer 2 — base tint
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .background(scaledTint)
+            )
+            // Layer 3 — refractive highlight
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .background(highlight)
+            )
+            // Layer 4 — inner bottom shadow
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .background(innerShadow)
+            )
+            // Layer 5 — iridescent shimmer
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .background(iridescence)
+            )
         }
-        // Layer 2 — base glass tint
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(tint)
-        )
-        // Layer 3 — refractive highlight sweep
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(highlight)
-        )
-        // Layer 4 — inner bottom shadow
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(innerShadow)
-        )
-        // Layer 5 — iridescent edge shimmer
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(iridescence)
-        )
-        // Layer 6 — content
+        // Content always on top
         content()
     }
 }
@@ -276,7 +276,7 @@ private const val KEY_LIQUID_GLASS = "liquid_glass_enabled"
 
 fun getMaterialYouEnabled(context: Context): Boolean =
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        .getBoolean(KEY_MATERIAL_YOU, Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        .getBoolean(KEY_MATERIAL_YOU, false)
 
 fun setMaterialYouEnabled(context: Context, enabled: Boolean) =
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -284,7 +284,7 @@ fun setMaterialYouEnabled(context: Context, enabled: Boolean) =
 
 fun getLiquidGlassEnabled(context: Context): Boolean =
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        .getBoolean(KEY_LIQUID_GLASS, true)
+        .getBoolean(KEY_LIQUID_GLASS, false)
 
 fun setLiquidGlassEnabled(context: Context, enabled: Boolean) =
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -314,24 +314,23 @@ fun AppTheme(content: @Composable () -> Unit) {
         } else null
 
     val colors = if (dynamicScheme != null) {
-        // Map Material You tokens — use primary/secondary/tertiary containers for vivid wallpaper colours
         val base = if (isDark) DarkAppColors else LightAppColors
         base.copy(
             background         = dynamicScheme.background,
-            surface            = dynamicScheme.surface,
+            surface            = dynamicScheme.surfaceVariant,
             cardBackground     = dynamicScheme.surfaceContainer,
             iconBox            = if (isDark) Color(0xFF1C1C1C) else Color(0xFFEEEEF4),
             textPrimary        = dynamicScheme.onBackground,
             textSecondary      = dynamicScheme.onSurfaceVariant,
-            tabActive          = dynamicScheme.primaryContainer,
-            tabBarBackground   = dynamicScheme.primary,
+            tabActive          = dynamicScheme.secondaryContainer,
+            tabBarBackground   = dynamicScheme.surfaceContainerHigh,
             tabBarScrimEnd     = dynamicScheme.background,
-            pillBarBg          = dynamicScheme.background,
+            pillBarBg          = dynamicScheme.surfaceContainerHigh,
             openButtonBg       = dynamicScheme.secondaryContainer,
             installButtonBg    = dynamicScheme.tertiaryContainer,
             updateButtonBg     = dynamicScheme.primaryContainer,
-            buttonTextColor    = if (isDark) dynamicScheme.onPrimaryContainer else dynamicScheme.onPrimary,
-            titleBarBackground = dynamicScheme.background,
+            buttonTextColor    = dynamicScheme.onSecondaryContainer,
+            titleBarBackground = dynamicScheme.surfaceContainerLow,
             accentPrimary      = dynamicScheme.primary,
             badgeBg            = dynamicScheme.error,
             currentVersionText = dynamicScheme.primary,
