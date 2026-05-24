@@ -1178,6 +1178,7 @@ fun MainScreen(cacheManager: CacheManager) {
             } // end when
         } // end Scaffold Box
     } // end Scaffold
+} // end MainScreen
 
 @Composable
 fun ModuleList(
