@@ -205,7 +205,7 @@ fun LiquidGlassSurface(
                             shape is RoundedCornerShape -> {
                                 val topLeft = shape.topStart.toPx(
                                     androidx.compose.ui.geometry.Size(size.width, size.height),
-                                    androidx.compose.ui.unit.LayoutDirection.Ltr
+                                    this
                                 )
                                 topLeft.coerceAtMost(size.height / 2f)
                             }
@@ -1162,16 +1162,7 @@ fun MainScreen(cacheManager: CacheManager) {
                                     ) {
                                         tabs.forEachIndexed { index, title ->
                                             val isSelected = pagerState.currentPage == index
-                                            val iconTint by animateColorAsState(
-                                                targetValue = if (isSelected) appColors.textPrimary else appColors.textSecondary,
-                                                animationSpec = tween(200), label = "iconTint"
-                                            )
-                                            val selectorTint by animateColorAsState(
-                                                targetValue = if (isSelected)
-                                                    if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.65f)
-                                                else Color.Transparent,
-                                                animationSpec = tween(200), label = "selectorTint"
-                                            )
+                                            val iconTint = if (isSelected) appColors.textPrimary else appColors.textSecondary
                                             val icon = when (title) {
                                                 "Updates"  -> Icons.Default.SystemUpdate
                                                 "Make up"  -> Icons.Default.Palette
@@ -1181,17 +1172,6 @@ fun MainScreen(cacheManager: CacheManager) {
                                                 modifier = Modifier.weight(1f),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                // Fixed height selector — fillMaxHeight crashes inside weighted Row
-                                                LiquidGlassSurface(
-                                                    modifier = Modifier
-                                                        .height(52.dp)
-                                                        .fillMaxWidth(0.92f)
-                                                        .clip(RoundedCornerShape(14.dp)),
-                                                    shape = RoundedCornerShape(14.dp),
-                                                    tint = selectorTint,
-                                                    solidColor = if (isSelected) appColors.tabActive else Color.Transparent,
-                                                    bloomAlpha = if (isSelected) (if (isDark) 0.22f else 0.28f) else 0f
-                                                )
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxSize()
