@@ -23,6 +23,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -216,15 +217,25 @@ fun LiquidGlassSurface(
                             Color.White.copy(alpha = rimAlpha * alpha / tint.alpha.coerceAtLeast(0.01f))
                         else
                             Color.White.copy(alpha = (rimAlpha + 0.15f) * alpha / tint.alpha.coerceAtLeast(0.01f))
-                        // Draw only the top border as a stroked path so middle is not filled
+                        // Draw all 4 edges as a full rounded-rect border
                         val path = androidx.compose.ui.graphics.Path().apply {
                             val r = cornerR
                             val w = size.width
-                            // Start at bottom-left of top-left arc, move along top edge only
-                            moveTo(0f, r)
-                            quadraticBezierTo(0f, 0f, r, 0f)
+                            val h = size.height
+                            // Top-left corner → top edge → top-right corner
+                            moveTo(r, 0f)
                             lineTo(w - r, 0f)
                             quadraticBezierTo(w, 0f, w, r)
+                            // Right edge → bottom-right corner
+                            lineTo(w, h - r)
+                            quadraticBezierTo(w, h, w - r, h)
+                            // Bottom edge → bottom-left corner
+                            lineTo(r, h)
+                            quadraticBezierTo(0f, h, 0f, h - r)
+                            // Left edge → top-left corner
+                            lineTo(0f, r)
+                            quadraticBezierTo(0f, 0f, r, 0f)
+                            close()
                         }
                         drawPath(
                             path = path,
@@ -1188,20 +1199,44 @@ fun MainScreen(cacheManager: CacheManager) {
                                                 ) {
                                                     Column(
                                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                        verticalArrangement = Arrangement.spacedBy(3.dp)
                                                     ) {
-                                                        if (title == "Updates" && updatableModules.isNotEmpty()) {
-                                                            BadgedBox(badge = {
-                                                                Badge(containerColor = appColors.badgeBg, contentColor = Color.White) {
-                                                                    Text("${updatableModules.size}", fontSize = 9.sp)
+                                                        // Icon component with its own border
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .border(
+                                                                    width = 1.dp,
+                                                                    color = if (isSelected) appColors.textPrimary.copy(alpha = 0.35f) else appColors.textSecondary.copy(alpha = 0.20f),
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                )
+                                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            if (title == "Updates" && updatableModules.isNotEmpty()) {
+                                                                BadgedBox(badge = {
+                                                                    Badge(containerColor = appColors.badgeBg, contentColor = Color.White) {
+                                                                        Text("${updatableModules.size}", fontSize = 9.sp)
+                                                                    }
+                                                                }) {
+                                                                    Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
                                                                 }
-                                                            }) {
+                                                            } else {
                                                                 Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
                                                             }
-                                                        } else {
-                                                            Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
                                                         }
-                                                        Text(title, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal, color = iconTint, fontSize = 10.sp, letterSpacing = 0.sp)
+                                                        // Label component with its own border
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .border(
+                                                                    width = 1.dp,
+                                                                    color = if (isSelected) appColors.textPrimary.copy(alpha = 0.35f) else appColors.textSecondary.copy(alpha = 0.20f),
+                                                                    shape = RoundedCornerShape(6.dp)
+                                                                )
+                                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(title, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal, color = iconTint, fontSize = 10.sp, letterSpacing = 0.sp)
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1278,8 +1313,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                             checked = liquidGlassEnabled,
                                             onCheckedChange = { setLiquidGlass(it) },
                                             colors = SwitchDefaults.colors(
-                                                checkedThumbColor = appColors.accentPrimary,
-                                                checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
+                                                checkedThumbColor = Color.White,
+                                                checkedTrackColor = Color(0xFF34C759),
+                                                checkedBorderColor = Color(0xFF34C759),
                                                 uncheckedThumbColor = appColors.textSecondary,
                                                 uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
                                             )
@@ -1308,8 +1344,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                                 checked = materialYouEnabled,
                                                 onCheckedChange = { setMaterialYou(it) },
                                                 colors = SwitchDefaults.colors(
-                                                    checkedThumbColor = appColors.accentPrimary,
-                                                    checkedTrackColor = appColors.accentPrimary.copy(alpha = 0.4f),
+                                                    checkedThumbColor = Color.White,
+                                                    checkedTrackColor = Color(0xFF34C759),
+                                                    checkedBorderColor = Color(0xFF34C759),
                                                     uncheckedThumbColor = appColors.textSecondary,
                                                     uncheckedTrackColor = appColors.textSecondary.copy(alpha = 0.3f)
                                                 )
