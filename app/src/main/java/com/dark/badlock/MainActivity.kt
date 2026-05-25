@@ -1329,7 +1329,7 @@ fun MainScreen(cacheManager: CacheManager) {
 
                                 Spacer(Modifier.height(16.dp))
                                 Text(
-                                    "Cool-Lock v1.8.1",
+                                    "Cool-Lock v1.8.2",
                                     color = appColors.textSecondary,
                                     fontSize = 12.sp,
                                     modifier = Modifier.align(Alignment.CenterHorizontally)
