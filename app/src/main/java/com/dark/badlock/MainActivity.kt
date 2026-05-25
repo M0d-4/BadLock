@@ -1119,45 +1119,6 @@ fun MainScreen(cacheManager: CacheManager) {
                             )
                         }
 
-                        // Sticky card that rises above the tab bar when scrolling near bottom
-                        val currentListState = listStates[pagerState.currentPage]
-                        val currentPageModules = when (tabs[pagerState.currentPage]) {
-                            "Updates" -> updatableModules
-                            else -> state.modules[tabs[pagerState.currentPage]] ?: emptyList()
-                        }
-                        // Only evaluate sticky logic when the pager is fully settled on a page
-                        val pageSettled = pagerState.currentPageOffsetFraction == 0f
-                        val layoutInfo = currentListState.layoutInfo
-                        val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
-                        val totalItems = currentPageModules.size
-                        // Show sticky card only when the last item is actually clipped/cut off at the bottom
-                        // i.e. its bottom edge exceeds the viewport end, meaning it's not fully visible
-                        val showStickyBar = pageSettled &&
-                            lastVisibleItem != null &&
-                            lastVisibleItem.index == totalItems - 1 &&
-                            lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset
-                        val stickyModule = if (showStickyBar && totalItems > 0) currentPageModules[totalItems - 1] else null
-
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = stickyModule != null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .padding(bottom = 152.dp, start = 16.dp, end = 16.dp),
-                            enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
-                            exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut()
-                        ) {
-                            stickyModule?.let { module ->
-                                ModuleCard(
-                                    module = module,
-                                    onModuleClick = { onModuleClick(module) },
-                                    onWebsiteClick = { onWebsiteClick(module.apkMirrorMainPage) },
-                                    onUpdateClick = { onUpdateClick(module) },
-                                    onAppInfoClick = { onAppInfoClick(module.packageName) },
-                                    onOpenClick = { onOpenClick(module) }
-                                )
-                            }
-                        }
 
                         // Bottom overlay
                         val isDark = isSystemInDarkTheme()
