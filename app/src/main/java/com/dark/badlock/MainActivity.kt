@@ -1130,11 +1130,12 @@ fun MainScreen(cacheManager: CacheManager) {
                         val layoutInfo = currentListState.layoutInfo
                         val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
                         val totalItems = currentPageModules.size
-                        // Show sticky bar when last item is partially scrolled out of view and page is settled
+                        // Show sticky card only when the last item is actually clipped/cut off at the bottom
+                        // i.e. its bottom edge exceeds the viewport end, meaning it's not fully visible
                         val showStickyBar = pageSettled &&
                             lastVisibleItem != null &&
                             lastVisibleItem.index == totalItems - 1 &&
-                            lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset - 160
+                            lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset
                         val stickyModule = if (showStickyBar && totalItems > 0) currentPageModules[totalItems - 1] else null
 
                         androidx.compose.animation.AnimatedVisibility(
