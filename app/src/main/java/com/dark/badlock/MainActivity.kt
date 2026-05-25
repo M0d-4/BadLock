@@ -200,7 +200,7 @@ fun LiquidGlassSurface(
                 Modifier.matchParentSize().clip(shape)
                     .background(tint)
                     .drawBehind {
-                        // Specular rim: bright arc along top edge, curves with shape corner radius
+                        // Specular rim: bright line only along the top edge, curving at corners
                         val cornerR = when {
                             shape is RoundedCornerShape -> {
                                 val topLeft = shape.topStart.toPx(
@@ -211,17 +211,25 @@ fun LiquidGlassSurface(
                             }
                             else -> 0f
                         }
-                        val rimH = 1.8.dp.toPx()
+                        val rimStroke = 1.8.dp.toPx()
                         val rimColor = if (isDark)
                             Color.White.copy(alpha = rimAlpha * alpha / tint.alpha.coerceAtLeast(0.01f))
                         else
                             Color.White.copy(alpha = (rimAlpha + 0.15f) * alpha / tint.alpha.coerceAtLeast(0.01f))
-                        // Draw as a thin rounded rect at the top, matching the shape's corner curve
-                        drawRoundRect(
+                        // Draw only the top border as a stroked path so middle is not filled
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            val r = cornerR
+                            val w = size.width
+                            // Start at bottom-left of top-left arc, move along top edge only
+                            moveTo(0f, r)
+                            quadraticBezierTo(0f, 0f, r, 0f)
+                            lineTo(w - r, 0f)
+                            quadraticBezierTo(w, 0f, w, r)
+                        }
+                        drawPath(
+                            path = path,
                             color = rimColor,
-                            topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            size = androidx.compose.ui.geometry.Size(size.width, rimH + cornerR * 0.6f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerR, cornerR)
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = rimStroke)
                         )
                     }
             )
@@ -1310,6 +1318,13 @@ fun MainScreen(cacheManager: CacheManager) {
                                     }
                                 }
 
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    "Cool-Lock v1.8",
+                                    color = appColors.textSecondary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
                                 Spacer(Modifier.height(16.dp))
                             }
                         }
