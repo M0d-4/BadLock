@@ -163,7 +163,7 @@ fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(50.dp),
     tint: Color = Color.White.copy(alpha = 0.12f),
-    solidColor: Color = Color.Unspecified,  // used when glass is OFF
+    solidColor: Color = Color.Unspecified,
     bloomAlpha: Float = 0.18f,
     rimAlpha: Float = 0.35f,
     content: @Composable BoxScope.() -> Unit = {}
@@ -180,7 +180,6 @@ fun LiquidGlassSurface(
         return
     }
 
-    // Single animated alpha drives all layers — prevents rectangle flash on tab switch
     val animatedAlpha by animateFloatAsState(
         targetValue = tint.alpha,
         animationSpec = tween(200), label = "glassAlpha"
@@ -189,51 +188,44 @@ fun LiquidGlassSurface(
     Box(modifier = modifier) {
         if (animatedAlpha > 0.005f) {
             val ratio = animatedAlpha / tint.alpha.coerceAtLeast(0.01f)
+            // Use drawBehind for all layers — avoids any layout/size issues that cause crashes
+            Box(
+                Modifier.matchParentSize().clip(shape).drawBehind {
+                    // Layer 1 — base tint
+                    drawRect(tint.copy(alpha = animatedAlpha))
 
-            // Layer 1 — frosted tinted fill (no blur — blur crashes on dynamic composables)
-            Box(
-                Modifier.matchParentSize().clip(shape)
-                    .background(tint.copy(alpha = animatedAlpha))
-            )
-            // Layer 2 — refractive highlight sweep (angled white, top-left → center)
-            Box(
-                Modifier.matchParentSize().clip(shape)
-                    .background(
-                        Brush.linearGradient(
-                            0.0f  to Color.White.copy(alpha = (if (isDark) 0.28f else 0.55f) * ratio),
-                            0.42f to Color.White.copy(alpha = (if (isDark) 0.08f else 0.18f) * ratio),
-                            0.65f to Color.Transparent,
-                            1.0f  to Color.Transparent,
-                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            end   = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, Float.MAX_VALUE)
-                        )
+                    // Layer 2 — refractive highlight (top-left diagonal sweep)
+                    val highlightBrush = Brush.linearGradient(
+                        0.0f  to Color.White.copy(alpha = (if (isDark) 0.28f else 0.52f) * ratio),
+                        0.42f to Color.White.copy(alpha = (if (isDark) 0.07f else 0.16f) * ratio),
+                        0.65f to Color.Transparent,
+                        1.0f  to Color.Transparent,
+                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                        end   = androidx.compose.ui.geometry.Offset(size.width, size.height)
                     )
-            )
-            // Layer 3 — inner bottom shadow (depth / thickness illusion)
-            Box(
-                Modifier.matchParentSize().clip(shape)
-                    .background(
-                        Brush.verticalGradient(
-                            0.0f  to Color.Transparent,
-                            0.70f to Color.Transparent,
-                            1.0f  to Color.Black.copy(alpha = (if (isDark) 0.35f else 0.12f) * ratio)
-                        )
+                    drawRect(brush = highlightBrush)
+
+                    // Layer 3 — inner bottom shadow
+                    val shadowBrush = Brush.verticalGradient(
+                        0.0f  to Color.Transparent,
+                        0.68f to Color.Transparent,
+                        1.0f  to Color.Black.copy(alpha = (if (isDark) 0.32f else 0.10f) * ratio),
+                        startY = 0f, endY = size.height
                     )
-            )
-            // Layer 4 — iridescent edge shimmer (bottom-right corner, blue→violet)
-            Box(
-                Modifier.matchParentSize().clip(shape)
-                    .background(
-                        Brush.linearGradient(
-                            0.0f  to Color.Transparent,
-                            0.60f to Color.Transparent,
-                            0.78f to Color(0xFF80C8FF).copy(alpha = 0.14f * ratio),
-                            0.90f to Color(0xFFB0A0FF).copy(alpha = 0.11f * ratio),
-                            1.0f  to Color.Transparent,
-                            start = androidx.compose.ui.geometry.Offset(Float.MAX_VALUE, 0f),
-                            end   = androidx.compose.ui.geometry.Offset(0f, Float.MAX_VALUE)
-                        )
+                    drawRect(brush = shadowBrush)
+
+                    // Layer 4 — iridescent edge shimmer
+                    val iriBrush = Brush.linearGradient(
+                        0.0f  to Color.Transparent,
+                        0.58f to Color.Transparent,
+                        0.76f to Color(0xFF80C8FF).copy(alpha = 0.13f * ratio),
+                        0.88f to Color(0xFFB0A0FF).copy(alpha = 0.10f * ratio),
+                        1.0f  to Color.Transparent,
+                        start = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                        end   = androidx.compose.ui.geometry.Offset(0f, size.height)
                     )
+                    drawRect(brush = iriBrush)
+                }
             )
         }
         content()
@@ -1152,13 +1144,13 @@ fun MainScreen(cacheManager: CacheManager) {
                                     .navigationBarsPadding(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // Glass pill tab bar — selector uses animated tint (no pop-in box)
+                                // Glass squircle tab bar
                                 LiquidGlassSurface(
                                     modifier = Modifier
                                         .padding(horizontal = 16.dp)
                                         .fillMaxWidth()
                                         .height(64.dp),
-                                    shape = RoundedCornerShape(50.dp),
+                                    shape = RoundedCornerShape(20.dp),
                                     tint = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f),
                                     solidColor = appColors.pillBarBg,
                                     bloomAlpha = if (isDark) 0.18f else 0.24f
@@ -1191,12 +1183,13 @@ fun MainScreen(cacheManager: CacheManager) {
                                                 modifier = Modifier.weight(1f),
                                                 contentAlignment = Alignment.Center
                                             ) {
+                                                // Fixed height selector — fillMaxHeight crashes inside weighted Row
                                                 LiquidGlassSurface(
                                                     modifier = Modifier
-                                                        .fillMaxHeight()
+                                                        .height(52.dp)
                                                         .fillMaxWidth(0.92f)
-                                                        .clip(RoundedCornerShape(50.dp)),
-                                                    shape = RoundedCornerShape(50.dp),
+                                                        .clip(RoundedCornerShape(14.dp)),
+                                                    shape = RoundedCornerShape(14.dp),
                                                     tint = selectorTint,
                                                     solidColor = if (isSelected) appColors.tabActive else Color.Transparent,
                                                     bloomAlpha = if (isSelected) (if (isDark) 0.22f else 0.28f) else 0f
