@@ -217,24 +217,20 @@ fun LiquidGlassSurface(
                             Color.White.copy(alpha = rimAlpha * alpha / tint.alpha.coerceAtLeast(0.01f))
                         else
                             Color.White.copy(alpha = (rimAlpha + 0.15f) * alpha / tint.alpha.coerceAtLeast(0.01f))
-                        // Draw all 4 edges as a full rounded-rect border
+                        // Draw full border using arcTo so corners are properly included
                         val path = androidx.compose.ui.graphics.Path().apply {
                             val r = cornerR
                             val w = size.width
                             val h = size.height
-                            // Top-left corner → top edge → top-right corner
                             moveTo(r, 0f)
                             lineTo(w - r, 0f)
-                            quadraticBezierTo(w, 0f, w, r)
-                            // Right edge → bottom-right corner
+                            arcTo(androidx.compose.ui.geometry.Rect(w - 2*r, 0f, w, 2*r), -90f, 90f, false)
                             lineTo(w, h - r)
-                            quadraticBezierTo(w, h, w - r, h)
-                            // Bottom edge → bottom-left corner
+                            arcTo(androidx.compose.ui.geometry.Rect(w - 2*r, h - 2*r, w, h), 0f, 90f, false)
                             lineTo(r, h)
-                            quadraticBezierTo(0f, h, 0f, h - r)
-                            // Left edge → top-left corner
+                            arcTo(androidx.compose.ui.geometry.Rect(0f, h - 2*r, 2*r, h), 90f, 90f, false)
                             lineTo(0f, r)
-                            quadraticBezierTo(0f, 0f, r, 0f)
+                            arcTo(androidx.compose.ui.geometry.Rect(0f, 0f, 2*r, 2*r), 180f, 90f, false)
                             close()
                         }
                         drawPath(
@@ -1098,11 +1094,14 @@ fun MainScreen(cacheManager: CacheManager) {
                             "Updates" -> updatableModules
                             else -> state.modules[tabs[pagerState.currentPage]] ?: emptyList()
                         }
+                        // Only evaluate sticky logic when the pager is fully settled on a page
+                        val pageSettled = pagerState.currentPageOffsetFraction == 0f
                         val layoutInfo = currentListState.layoutInfo
                         val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
                         val totalItems = currentPageModules.size
-                        // Show sticky bar when last item is partially scrolled out of view
-                        val showStickyBar = lastVisibleItem != null &&
+                        // Show sticky bar when last item is partially scrolled out of view and page is settled
+                        val showStickyBar = pageSettled &&
+                            lastVisibleItem != null &&
                             lastVisibleItem.index == totalItems - 1 &&
                             lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset - 160
                         val stickyModule = if (showStickyBar && totalItems > 0) currentPageModules[totalItems - 1] else null
@@ -1168,9 +1167,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                         .fillMaxWidth()
                                         .height(64.dp),
                                     shape = RoundedCornerShape(20.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.45f),
+                                    tint = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.65f),
                                     solidColor = appColors.pillBarBg,
-                                    bloomAlpha = if (isDark) 0.18f else 0.24f
+                                    bloomAlpha = if (isDark) 0.28f else 0.34f
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -1201,14 +1200,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                                         horizontalAlignment = Alignment.CenterHorizontally,
                                                         verticalArrangement = Arrangement.spacedBy(3.dp)
                                                     ) {
-                                                        // Icon component with its own border
+                                                        // Icon component
                                                         Box(
                                                             modifier = Modifier
-                                                                .border(
-                                                                    width = 1.dp,
-                                                                    color = if (isSelected) appColors.textPrimary.copy(alpha = 0.35f) else appColors.textSecondary.copy(alpha = 0.20f),
-                                                                    shape = RoundedCornerShape(8.dp)
-                                                                )
                                                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                                                             contentAlignment = Alignment.Center
                                                         ) {
@@ -1224,14 +1218,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                                                 Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
                                                             }
                                                         }
-                                                        // Label component with its own border
+                                                        // Label component
                                                         Box(
                                                             modifier = Modifier
-                                                                .border(
-                                                                    width = 1.dp,
-                                                                    color = if (isSelected) appColors.textPrimary.copy(alpha = 0.35f) else appColors.textSecondary.copy(alpha = 0.20f),
-                                                                    shape = RoundedCornerShape(6.dp)
-                                                                )
                                                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                                                             contentAlignment = Alignment.Center
                                                         ) {
@@ -1250,9 +1239,9 @@ fun MainScreen(cacheManager: CacheManager) {
                                         .fillMaxWidth()
                                         .padding(horizontal = 6.dp, vertical = 6.dp),
                                     shape = RoundedCornerShape(50.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.50f),
+                                    tint = if (isDark) Color.White.copy(alpha = 0.26f) else Color.White.copy(alpha = 0.68f),
                                     solidColor = appColors.titleBarBackground,
-                                    bloomAlpha = if (isDark) 0.14f else 0.20f
+                                    bloomAlpha = if (isDark) 0.24f else 0.30f
                                 ) {
                                     Row(
                                         modifier = Modifier
