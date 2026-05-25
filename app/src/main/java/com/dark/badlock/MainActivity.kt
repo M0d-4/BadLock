@@ -58,6 +58,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -158,13 +159,14 @@ val LightAppColors = AppColors(
 )
 
 // ── Liquid Glass surface ──────────────────────────────────────────────────────
+// Style: blur bloom + semi-transparent fill + curved specular rim at top edge
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(50.dp),
-    tint: Color = Color.White.copy(alpha = 0.12f),
+    tint: Color = Color.White.copy(alpha = 0.22f),
     solidColor: Color = Color.Unspecified,
-    bloomAlpha: Float = 0.18f,
+    bloomAlpha: Float = 0.20f,
     rimAlpha: Float = 0.35f,
     content: @Composable BoxScope.() -> Unit = {}
 ) {
@@ -180,52 +182,48 @@ fun LiquidGlassSurface(
         return
     }
 
-    val animatedAlpha by animateFloatAsState(
-        targetValue = tint.alpha,
-        animationSpec = tween(200), label = "glassAlpha"
-    )
+    // Use tint.alpha directly — caller already animates it via animateColorAsState.
+    // Adding another animateFloatAsState here caused double-animation flicker.
+    val alpha = tint.alpha
 
     Box(modifier = modifier) {
-        if (animatedAlpha > 0.005f) {
-            val ratio = animatedAlpha / tint.alpha.coerceAtLeast(0.01f)
-            // Use drawBehind for all layers — avoids any layout/size issues that cause crashes
+        if (alpha > 0.005f) {
+            // Layer 1 — tinted bloom via semi-opaque fill (no blur — blur crashes on wrap_content sizes)
+            // Use graphicsLayer for the softened look instead
             Box(
-                Modifier.matchParentSize().clip(shape).drawBehind {
-                    // Layer 1 — base tint
-                    drawRect(tint.copy(alpha = animatedAlpha))
-
-                    // Layer 2 — refractive highlight (top-left diagonal sweep)
-                    val highlightBrush = Brush.linearGradient(
-                        0.0f  to Color.White.copy(alpha = (if (isDark) 0.28f else 0.52f) * ratio),
-                        0.42f to Color.White.copy(alpha = (if (isDark) 0.07f else 0.16f) * ratio),
-                        0.65f to Color.Transparent,
-                        1.0f  to Color.Transparent,
-                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                        end   = androidx.compose.ui.geometry.Offset(size.width, size.height)
-                    )
-                    drawRect(brush = highlightBrush)
-
-                    // Layer 3 — inner bottom shadow
-                    val shadowBrush = Brush.verticalGradient(
-                        0.0f  to Color.Transparent,
-                        0.68f to Color.Transparent,
-                        1.0f  to Color.Black.copy(alpha = (if (isDark) 0.32f else 0.10f) * ratio),
-                        startY = 0f, endY = size.height
-                    )
-                    drawRect(brush = shadowBrush)
-
-                    // Layer 4 — iridescent edge shimmer
-                    val iriBrush = Brush.linearGradient(
-                        0.0f  to Color.Transparent,
-                        0.58f to Color.Transparent,
-                        0.76f to Color(0xFF80C8FF).copy(alpha = 0.13f * ratio),
-                        0.88f to Color(0xFFB0A0FF).copy(alpha = 0.10f * ratio),
-                        1.0f  to Color.Transparent,
-                        start = androidx.compose.ui.geometry.Offset(size.width, 0f),
-                        end   = androidx.compose.ui.geometry.Offset(0f, size.height)
-                    )
-                    drawRect(brush = iriBrush)
-                }
+                Modifier.matchParentSize().clip(shape)
+                    .graphicsLayer { this.alpha = bloomAlpha * alpha / tint.alpha.coerceAtLeast(0.01f) }
+                    .background(if (isDark) Color.White else Color.Black.copy(alpha = 0.4f))
+            )
+            // Layer 2 — glass fill + curved specular rim via drawBehind
+            Box(
+                Modifier.matchParentSize().clip(shape)
+                    .background(tint)
+                    .drawBehind {
+                        // Specular rim: bright arc along top edge, curves with shape corner radius
+                        val cornerR = when {
+                            shape is RoundedCornerShape -> {
+                                val topLeft = shape.topStart.toPx(
+                                    androidx.compose.ui.geometry.Size(size.width, size.height),
+                                    androidx.compose.ui.unit.LayoutDirection.Ltr
+                                )
+                                topLeft.coerceAtMost(size.height / 2f)
+                            }
+                            else -> 0f
+                        }
+                        val rimH = 1.8.dp.toPx()
+                        val rimColor = if (isDark)
+                            Color.White.copy(alpha = rimAlpha * alpha / tint.alpha.coerceAtLeast(0.01f))
+                        else
+                            Color.White.copy(alpha = (rimAlpha + 0.15f) * alpha / tint.alpha.coerceAtLeast(0.01f))
+                        // Draw as a thin rounded rect at the top, matching the shape's corner curve
+                        drawRoundRect(
+                            color = rimColor,
+                            topLeft = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(size.width, rimH + cornerR * 0.6f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerR, cornerR)
+                        )
+                    }
             )
         }
         content()
@@ -1228,10 +1226,10 @@ fun MainScreen(cacheManager: CacheManager) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 6.dp, vertical = 6.dp),
-                                    shape = RoundedCornerShape(28.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.06f) else Color.White.copy(alpha = 0.40f),
+                                    shape = RoundedCornerShape(50.dp),
+                                    tint = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.50f),
                                     solidColor = appColors.titleBarBackground,
-                                    bloomAlpha = if (isDark) 0.12f else 0.18f
+                                    bloomAlpha = if (isDark) 0.14f else 0.20f
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -1395,14 +1393,14 @@ fun ModuleCard(
     onOpenClick: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
-    val pillShape = RoundedCornerShape(28.dp)
+    val pillShape = RoundedCornerShape(50.dp)
     LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth().clip(pillShape).clickable(onClick = onAppInfoClick),
         shape = pillShape,
-        tint = if (isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.55f),
+        tint = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.65f),
         solidColor = appColors.cardBackground,
-        bloomAlpha = if (isDark) 0.12f else 0.22f,
-        rimAlpha = if (isDark) 0.28f else 0.55f
+        bloomAlpha = if (isDark) 0.16f else 0.24f,
+        rimAlpha = if (isDark) 0.32f else 0.55f
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
