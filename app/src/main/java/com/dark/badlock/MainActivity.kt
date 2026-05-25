@@ -189,19 +189,28 @@ fun LiquidGlassSurface(
 
     Box(modifier = modifier) {
         if (alpha > 0.005f) {
-            // Layer 1 — tinted bloom via semi-opaque fill (no blur — blur crashes on wrap_content sizes)
-            // Use graphicsLayer for the softened look instead
+            // Layer 1 — tinted bloom fading top→bottom
             Box(
                 Modifier.matchParentSize().clip(shape)
-                    .graphicsLayer { this.alpha = bloomAlpha * alpha / tint.alpha.coerceAtLeast(0.01f) }
-                    .background(if (isDark) Color.White else Color.Black.copy(alpha = 0.4f))
-            )
-            // Layer 2 — glass fill + curved specular rim via drawBehind
-            Box(
-                Modifier.matchParentSize().clip(shape)
-                    .background(tint)
                     .drawBehind {
-                        // Specular rim: bright line only along the top edge, curving at corners
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    (if (isDark) Color.White else Color.Black.copy(alpha = 0.4f))
+                                        .copy(alpha = bloomAlpha * alpha / tint.alpha.coerceAtLeast(0.01f)),
+                                    (if (isDark) Color.White else Color.Black.copy(alpha = 0.4f))
+                                        .copy(alpha = bloomAlpha * alpha / tint.alpha.coerceAtLeast(0.01f) * 0.30f)
+                                ),
+                                startY = 0f,
+                                endY = size.height
+                            )
+                        )
+                    }
+            )
+            // Layer 2 — glass fill fading top→bottom + border fading top→bottom via drawBehind
+            Box(
+                Modifier.matchParentSize().clip(shape)
+                    .drawBehind {
                         val cornerR = when {
                             shape is RoundedCornerShape -> {
                                 val topLeft = shape.topStart.toPx(
@@ -212,16 +221,31 @@ fun LiquidGlassSurface(
                             }
                             else -> 0f
                         }
+
+                        // Glass fill: full opacity at top, ~40% at bottom
+                        val fillTop = tint
+                        val fillBottom = tint.copy(alpha = tint.alpha * 0.40f)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(fillTop, fillBottom),
+                                startY = 0f,
+                                endY = size.height
+                            )
+                        )
+
+                        // Border: bright at top, fading to ~35% at bottom
                         val rimStroke = 1.8.dp.toPx()
-                        val rimColor = if (isDark)
-                            Color.White.copy(alpha = rimAlpha * alpha / tint.alpha.coerceAtLeast(0.01f))
+                        val rimTopAlpha = if (isDark)
+                            rimAlpha * alpha / tint.alpha.coerceAtLeast(0.01f)
                         else
-                            Color.White.copy(alpha = (rimAlpha + 0.15f) * alpha / tint.alpha.coerceAtLeast(0.01f))
-                        // Draw full border using arcTo so corners are properly included
+                            (rimAlpha + 0.15f) * alpha / tint.alpha.coerceAtLeast(0.01f)
+                        val rimBottomAlpha = rimTopAlpha * 0.35f
+
+                        val r = cornerR
+                        val w = size.width
+                        val h = size.height
+
                         val path = androidx.compose.ui.graphics.Path().apply {
-                            val r = cornerR
-                            val w = size.width
-                            val h = size.height
                             moveTo(r, 0f)
                             lineTo(w - r, 0f)
                             arcTo(androidx.compose.ui.geometry.Rect(w - 2*r, 0f, w, 2*r), -90f, 90f, false)
@@ -235,7 +259,14 @@ fun LiquidGlassSurface(
                         }
                         drawPath(
                             path = path,
-                            color = rimColor,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = rimTopAlpha),
+                                    Color.White.copy(alpha = rimBottomAlpha)
+                                ),
+                                startY = 0f,
+                                endY = h
+                            ),
                             style = androidx.compose.ui.graphics.drawscope.Stroke(width = rimStroke)
                         )
                     }
@@ -1346,7 +1377,7 @@ fun MainScreen(cacheManager: CacheManager) {
 
                                 Spacer(Modifier.height(16.dp))
                                 Text(
-                                    "Cool-Lock v1.8.1",
+                                    "Cool-Lock v1.8.2",
                                     color = appColors.textSecondary,
                                     fontSize = 12.sp,
                                     modifier = Modifier.align(Alignment.CenterHorizontally)
