@@ -1226,31 +1226,21 @@ fun MainScreen(cacheManager: CacheManager) {
                                     }
                                 }
 
-                                // Title + Settings + Refresh glass row
-                                LiquidGlassSurface(
+                                // Title + Settings + Refresh — no background
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                                    shape = RoundedCornerShape(50.dp),
-                                    tint = if (isDark) Color.White.copy(alpha = 0.26f) else Color.White.copy(alpha = 0.68f),
-                                    solidColor = appColors.titleBarBackground,
-                                    bloomAlpha = if (isDark) 0.24f else 0.30f
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text("Cool-Lock", fontWeight = FontWeight.Bold, color = appColors.textPrimary, fontSize = 20.sp)
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconButton(onClick = { showSettings = true }) {
-                                                Icon(Icons.Default.Tune, contentDescription = "Settings", tint = appColors.textSecondary)
-                                            }
-                                            IconButton(onClick = { refreshData(force = true) }, enabled = moduleState != ModuleState.Loading) {
-                                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = appColors.textSecondary)
-                                            }
+                                    Text("Cool-Lock", fontWeight = FontWeight.Bold, color = appColors.textPrimary, fontSize = 20.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = { showSettings = true }) {
+                                            Icon(Icons.Default.Tune, contentDescription = "Settings", tint = appColors.textSecondary)
+                                        }
+                                        IconButton(onClick = { refreshData(force = true) }, enabled = moduleState != ModuleState.Loading) {
+                                            Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = appColors.textSecondary)
                                         }
                                     }
                                 }
@@ -1339,7 +1329,7 @@ fun MainScreen(cacheManager: CacheManager) {
 
                                 Spacer(Modifier.height(16.dp))
                                 Text(
-                                    "Cool-Lock v1.8.2",
+                                    "Cool-Lock v1.8.1",
                                     color = appColors.textSecondary,
                                     fontSize = 12.sp,
                                     modifier = Modifier.align(Alignment.CenterHorizontally)
