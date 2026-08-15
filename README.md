@@ -46,6 +46,3 @@ All Good Lock module names, icons, and related trademarks are the property of Sa
 The application version data is retrieved from APKMirror.com. All credit for providing and hosting the APK files goes to the team at APKMirror.
 
 This app is provided for educational and experimental purposes. It does not host or distribute any APK files. All download links redirect to the official APKMirror website.
-
-📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
